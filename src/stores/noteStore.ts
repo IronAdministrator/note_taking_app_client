@@ -2,6 +2,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import axios from 'axios'
+import { useAuthStore } from './authStore'
+import router from '@/router'
+import { AxiosError } from 'axios'
 
 export type Note = {
   _id?: string
@@ -23,8 +26,14 @@ export const useNotesStore = defineStore('notes', () => {
     try {
       const response = await axios.get(`${API_URL}/notes`)
       notes.value = response.data
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching notes:', error)
+      if ((error as AxiosError)?.response?.status === 401) {
+        // If unauthorized, clear the token and redirect to login
+        const authStore = useAuthStore()
+        authStore.logout()
+        router.push('/login')
+      }
     }
   }
 

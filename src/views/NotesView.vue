@@ -10,13 +10,13 @@
     <div v-for="note in notesStore.notes" :key="note._id">
       <h3>{{ note.title }}</h3>
       <p>{{ note.text }}</p>
-      <small>Created at: {{ formatDate(note.createdAt) }}</small>
-      <small v-if="new Date(note.updatedAt).getTime() !== new Date(note.createdAt).getTime()">
-        Last updated: {{ formatDate(note.updatedAt) }}
+      <small>Created at: {{ formatDate(note.createdAt || '') }}</small>
+      <small v-if="note.updatedAt && note.createdAt && new Date(note.updatedAt).getTime() !== new Date(note.createdAt).getTime()">
+        Last updated: {{ formatDate(note.updatedAt || '') }}
         <span>(Updated {{ note.updatedCount }}x)</span>
       </small>
       <div>
-        <button @click="deleteNote(note._id)">Delete</button>
+        <button @click="deleteNote(note._id!)">Delete</button>
         <button @click="openEditModal(note)">Edit</button>
       </div>
     </div>
@@ -37,16 +37,29 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { format } from 'date-fns'
-import { useNotesStore, type Note } from '@/stores/noteStore'
+import { useNotesStore } from '@/stores/noteStore'
+import { useAuthStore } from '@/stores/authStore'
+import { useRouter } from 'vue-router'
+
+interface Note {
+  _id?: string;
+  title?: string;
+  text: string;
+  createdAt?: string;
+  updatedAt?: string;
+  updatedCount?: number;
+}
 
 // 1. Access the store
 const notesStore = useNotesStore()
+const authStore = useAuthStore()
+const router = useRouter()
 
 // 2. Local refs (for creating and editing notes)
 const newTitle = ref('')
 const newText = ref('')
 const showEditModal = ref(false)
-const editingNote = ref({
+const editingNote = ref<Note>({
   _id: '',
   title: '',
   text: '',
@@ -54,8 +67,12 @@ const editingNote = ref({
 })
 
 // 3. Fetch notes when the component mounts
-onMounted(() => {
-  notesStore.fetchNotes()
+onMounted(async () => {
+  if (!authStore.token) {
+    router.push('/login')
+    return
+  }
+  await notesStore.fetchNotes()
 })
 
 // 4. "Add note" button handler
@@ -78,12 +95,13 @@ function openEditModal(note: Note) {
 
 // 7. Save changes from the edit modal
 function saveEdit() {
-  notesStore.editNote(editingNote.value._id, editingNote.value.title, editingNote.value.text)
+  notesStore.editNote(editingNote.value._id!, editingNote.value.title || '', editingNote.value.text)
   showEditModal.value = false
 }
 
 // 8. Utility function to format date
-function formatDate(dateString: string) {
+function formatDate(dateString: string | undefined): string {
+  if (!dateString) return '';
   return format(new Date(dateString), "PP 'at' HH:mm:ss")
 }
 </script>
